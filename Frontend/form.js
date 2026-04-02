@@ -15,24 +15,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function clearError(input) {
     const errorEl = input.nextElementSibling;
-    if (errorEl && errorEl.classList.contains('error-message')) {
-      errorEl.textContent = '';
-    }
+    if (errorEl && errorEl.classList.contains('error-message')) errorEl.textContent = '';
   }
 
-  // ======================
-  // SIGNUP
-  // ======================
+  // ===== Password Toggle =====
+  const toggleBtns = document.querySelectorAll('.toggle-pass');
+  toggleBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pwInput = btn.closest('.password-wrapper').querySelector('input[type="password"], input[type="text"]');
+      if (pwInput) {
+        const type = pwInput.type === 'password' ? 'text' : 'password';
+        pwInput.type = type;
+        btn.innerHTML = type === 'password'
+          ? '<i class="ri-eye-line"></i>'
+          : '<i class="ri-eye-off-line"></i>';
+      }
+    });
+  });
+
+  // ===== Signup Form =====
   const signupForm = document.querySelector('.signup-form');
   if (signupForm) {
     signupForm.addEventListener('submit', async e => {
       e.preventDefault();
 
-      const username = document.getElementById('username')?.value.trim();
-      const email = document.getElementById('email')?.value.trim();
-      const password = document.getElementById('password')?.value.trim();
+      const usernameEl = document.getElementById('username');
+      const emailEl = document.getElementById('email');
+      const passwordEl = document.getElementById('password');
 
-      if (!username || !email || !password) return;
+      const username = usernameEl.value.trim();
+      const email = emailEl.value.trim();
+      const password = passwordEl.value.trim();
+
+      clearError(usernameEl);
+      clearError(emailEl);
+      clearError(passwordEl);
+
+      let valid = true;
+      if (!username) { showError(usernameEl, 'Username required'); valid = false; }
+      if (!emailPattern.test(email)) { showError(emailEl, 'Valid email required'); valid = false; }
+      if (!passwordPattern.test(password)) { showError(passwordEl, 'Min 6 chars letters+numbers'); valid = false; }
+      if (!valid) return;
 
       try {
         const res = await fetch('https://robo-enhance.onrender.com/auth/register', {
@@ -44,32 +67,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
 
         if (res.ok) {
-          alert("Signup successful!");
-          window.location.href = "login.html";
+          alert('Registration successful! Please login.');
+          window.location.href = 'login.html';
         } else {
-          alert(data.error || "Signup failed");
+          alert(data.error || 'Registration failed');
         }
-
       } catch (err) {
         console.error(err);
-        alert("Server error");
+        alert('Server error. Try again later.');
       }
     });
   }
 
-  // ======================
-  // LOGIN (FIXED MAIN PART)
-  // ======================
+  // ===== Login Form =====
   const loginForm = document.querySelector('.login-form');
   if (loginForm) {
     loginForm.addEventListener('submit', async e => {
       e.preventDefault();
 
-      const email = document.getElementById('email')?.value.trim();
-      const password = document.getElementById('password')?.value.trim();
+      const emailEl = document.getElementById('email');
+      const passwordEl = document.getElementById('password');
 
-      if (!emailPattern.test(email)) return alert("Invalid email");
-      if (!password) return alert("Password required");
+      const email = emailEl.value.trim();
+      const password = passwordEl.value.trim();
+
+      clearError(emailEl);
+      clearError(passwordEl);
+
+      let valid = true;
+      if (!emailPattern.test(email)) { showError(emailEl, 'Valid email required'); valid = false; }
+      if (!password) { showError(passwordEl, 'Password required'); valid = false; }
+      if (!valid) return;
 
       try {
         const res = await fetch('https://robo-enhance.onrender.com/auth/login', {
@@ -80,39 +108,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = await res.json();
 
-        if (res.ok && data.token) {
+        if (res.ok && data.user) {
+          localStorage.setItem('loggedIn', 'true');
+          localStorage.setItem('userId', data.user.id);
+          localStorage.setItem('username', data.user.username);
+          localStorage.setItem('email', data.user.email);
 
-          // 🔥 ONLY ONE AUTH SYSTEM
-          localStorage.setItem('token', data.token);
+          emailEl.value = '';
+          passwordEl.value = '';
 
-          localStorage.setItem('userId', data.user?.id || "");
-          localStorage.setItem('username', data.user?.username || "");
-          localStorage.setItem('email', data.user?.email || "");
-
-          window.location.href = "index.html";
-
+          window.location.href = 'index.html';
         } else {
-          alert(data.error || "Login failed");
+          showError(passwordEl, data.error || 'Invalid email or password');
         }
-
       } catch (err) {
         console.error(err);
-        alert("Server error");
+        alert('Server error. Try again later.');
       }
     });
   }
 
-  // ======================
-  // PROFILE UPDATE
-  // ======================
+  // ===== Update Profile Form =====
   const profileForm = document.querySelector('.profile-form');
   if (profileForm) {
     profileForm.addEventListener('submit', async e => {
       e.preventDefault();
 
-      const username = document.getElementById('username')?.value.trim();
-      const email = document.getElementById('email')?.value.trim();
+      const usernameEl = document.getElementById('username');
+      const emailEl = document.getElementById('email');
+
+      const username = usernameEl.value.trim();
+      const email = emailEl.value.trim();
       const userId = localStorage.getItem('userId');
+
+      clearError(usernameEl);
+      clearError(emailEl);
+
+      let valid = true;
+      if (!username) { showError(usernameEl, 'Username required'); valid = false; }
+      if (!emailPattern.test(email)) { showError(emailEl, 'Valid email required'); valid = false; }
+      if (!valid) return;
 
       try {
         const res = await fetch('https://robo-enhance.onrender.com/auth/update_profile', {
@@ -123,17 +158,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = await res.json();
 
-        if (res.ok) {
-          alert("Profile updated!");
-          localStorage.setItem('username', username);
-          localStorage.setItem('email', email);
+        if (res.ok && data.user) {
+          alert('Profile updated successfully!');
+          localStorage.setItem('username', data.user.username);
+          localStorage.setItem('email', data.user.email);
         } else {
-          alert(data.error || "Update failed");
+          alert(data.error || 'Update failed');
         }
-
       } catch (err) {
         console.error(err);
-        alert("Server error");
+        alert('Server error. Try again later.');
       }
     });
   }

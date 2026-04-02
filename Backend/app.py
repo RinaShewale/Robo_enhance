@@ -1,16 +1,10 @@
 import os
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 print("🚀 APP STARTING...")
 
-# 🔥 IMPORTANT: frontend path add
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_PATH = os.path.join(BASE_DIR, "..", "Frontend")
-
-print("📁 FRONTEND PATH:", FRONTEND_PATH)
-
-app = Flask(__name__, static_folder=FRONTEND_PATH)
+app = Flask(__name__)
 CORS(app)
 
 # ========================
@@ -32,7 +26,7 @@ except Exception as e:
 
 
 # ========================
-# AI IMPORT SAFE
+# AI IMPORT SAFE (NEW)
 # ========================
 try:
     from src.module.ai_service import enhance_text
@@ -44,23 +38,11 @@ except Exception as e:
 
 
 # ========================
-# 🌐 FRONTEND SERVE (🔥 MAIN FIX)
+# ROOT
 # ========================
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_frontend(path):
-    try:
-        full_path = os.path.join(app.static_folder, path)
-
-        if path != "" and os.path.exists(full_path):
-            return send_from_directory(app.static_folder, path)
-
-        # 👉 default index.html
-        return send_from_directory(app.static_folder, "index.html")
-
-    except Exception as e:
-        print("❌ Frontend error:", e)
-        return jsonify({"error": str(e)}), 500
+@app.route("/")
+def home():
+    return jsonify({"message": "API working 🚀"})
 
 
 # ========================
@@ -75,7 +57,7 @@ def health():
 
 
 # ========================
-# 🔥 AI TEXT ENHANCER
+# 🔥 AI TEXT ENHANCER ROUTE (MAIN FIX)
 # ========================
 @app.route("/enhance", methods=["POST"])
 def enhance():
