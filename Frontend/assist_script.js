@@ -25,7 +25,7 @@ function requireLogin() {
     return token;
 }
 
-// decode JWT (simple payload extract)
+// decode JWT
 function parseUserFromToken(token) {
     try {
         const payload = JSON.parse(atob(token.split(".")[1]));
@@ -63,7 +63,7 @@ speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
 // ========================
-// 🎯 DOM ELEMENTS
+// 🎯 POPUP UI
 // ========================
 const overlay = document.getElementById("overlay");
 const voicePopup = document.createElement("div");
@@ -90,7 +90,7 @@ voicePopup.innerHTML = `
 `;
 
 // ========================
-// 🎯 DOUBLE TAP MIC
+// 🎯 MIC ACTION
 // ========================
 let clickTimer = null;
 
@@ -150,7 +150,7 @@ function notify(msg) {
 }
 
 // ========================
-// 💾 SAVE LOCAL STATS
+// 💾 LOCAL STORAGE
 // ========================
 function saveVoiceMessage(text) {
     const arr = JSON.parse(localStorage.getItem("voiceMessages")) || [];
@@ -167,7 +167,7 @@ function saveLanguage(lang) {
 }
 
 // ========================
-// 📩 LOAD MESSAGES (SECURE)
+// 📩 LOAD MESSAGES
 // ========================
 const messagesContainer = document.getElementById("messages-container");
 const msgCountEl = document.getElementById("msg-count");
@@ -216,7 +216,6 @@ async function loadMessages() {
         console.error("Load error:", err);
     }
 
-    // stats update
     const voicesLS = JSON.parse(localStorage.getItem("voiceMessages")) || [];
     const langsLS = JSON.parse(localStorage.getItem("languagesUsed")) || [];
 
@@ -224,11 +223,10 @@ async function loadMessages() {
     if (langCountEl) langCountEl.textContent = langsLS.length;
 }
 
-// refresh loop
 setInterval(loadMessages, 5000);
 
 // ========================
-// 🔊 SPEAK + SAVE (SECURE)
+// 🔊 SPEAK + SAVE (FIXED STREAMELEMENTS)
 // ========================
 async function speakAndSave() {
     const input = document.getElementById("inputMessage");
@@ -236,67 +234,80 @@ async function speakAndSave() {
 
     if (!text) return alert("Type something 😅");
 
-    // ===== SPEECH =====
+    const token = requireLogin();
+
+    // ===== NATIVE SPEECH =====
     const speech = new SpeechSynthesisUtterance(text);
     speech.lang = selectedLang;
 
     const voiceList = speechSynthesis.getVoices();
 
-    let voice;
-    if (selectedGender === "female") {
-        voice = voiceList.find(v =>
-            v.name.toLowerCase().includes("female") ||
-            v.name.toLowerCase().includes("google")
-        );
-    } else {
-        voice = voiceList.find(v =>
-            v.name.toLowerCase().includes("male") ||
-            v.name.toLowerCase().includes("alex")
-        );
-    }
+    let voice = voiceList.find(v =>
+        selectedGender === "female"
+            ? v.name.toLowerCase().includes("female")
+            : v.name.toLowerCase().includes("male")
+    );
 
     speech.voice = voice || voiceList[0];
 
     speechSynthesis.cancel();
     speechSynthesis.speak(speech);
 
-    // fallback TTS
+    // ========================
+    // 🔥 STREAMELEMENTS FIXED TTS
+    // ========================
     setTimeout(() => {
         if (!speechSynthesis.speaking) {
+
             const fallbackVoice = selectedGender === "female" ? "Emma" : "Brian";
 
-            const audio = new Audio(
-                `https://api.streamelements.com/kappa/v2/speech?voice=${fallbackVoice}&text=${encodeURIComponent(text)}`
-            );
+            const audioUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${fallbackVoice}&text=${encodeURIComponent(text)}`;
 
-            audio.play();
+            const audio = new Audio(audioUrl);
+            audio.volume = 1.0;
+
+            audio.play()
+                .catch(err => {
+                    console.log("StreamElements failed, retrying...", err);
+
+                    setTimeout(() => {
+                        audio.play().catch(() => {
+
+                            // final fallback 💡
+                            const fallbackSpeech = new SpeechSynthesisUtterance(text);
+                            fallbackSpeech.lang = selectedLang;
+                            speechSynthesis.speak(fallbackSpeech);
+                        });
+                    }, 500);
+                });
+
+            audio.addEventListener("error", () => {
+                const fallbackSpeech = new SpeechSynthesisUtterance(text);
+                fallbackSpeech.lang = selectedLang;
+                speechSynthesis.speak(fallbackSpeech);
+            });
         }
-    }, 1000);
+    }, 800);
 
-    // ===== SAVE TO BACKEND (SECURE) =====
+    // ===== SAVE BACKEND =====
     try {
-        const token = requireLogin();
-
         const res = await fetch(`${API_BASE}/messages/save_message`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`
             },
-            body: JSON.stringify({
-                message: text
-            })
+            body: JSON.stringify({ message: text })
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Save failed");
+        if (!res.ok) throw new Error("Save failed");
 
         loadMessages();
+
     } catch (err) {
         console.error("Save error:", err);
     }
 
-    // local stats
     saveVoiceMessage(text);
     saveLanguage(selectedLang);
 

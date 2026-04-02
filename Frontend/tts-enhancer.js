@@ -1,4 +1,4 @@
-// ===== TTS ENHANCER APPLICATION (FULL SECURE VERSION) =====
+// ===== TTS ENHANCER APPLICATION (FULL SECURE FIXED VERSION) =====
 
 const API_BASE = "https://robo-enhance.onrender.com";
 
@@ -29,7 +29,24 @@ function requireLogin() {
 }
 
 // ========================
-// 🎯 DOM ELEMENTS
+// 🚫 SAFE DISABLE UI
+// ========================
+function disableUI() {
+    const safeDisable = (el) => {
+        if (el) el.disabled = true;
+    };
+
+    safeDisable(enhanceBtn);
+    safeDisable(clearBtn);
+    safeDisable(speakBtn);
+    safeDisable(copyBtn);
+    safeDisable(downloadBtn);
+
+    if (ttsInput) ttsInput.disabled = true;
+}
+
+// ========================
+// 🎯 DOM ELEMENTS (SAFE CHECK)
 // ========================
 const ttsInput = document.getElementById("tts-input");
 const ttsMode = document.getElementById("tts-mode");
@@ -52,19 +69,6 @@ const voiceGender = document.getElementById("voice-gender");
 const speedDisplay = document.getElementById("speed-display");
 
 // ========================
-// 🚫 DISABLE UI
-// ========================
-function disableUI() {
-    enhanceBtn.disabled = true;
-    clearBtn.disabled = true;
-    speakBtn.disabled = true;
-    copyBtn.disabled = true;
-    downloadBtn.disabled = true;
-
-    if (ttsInput) ttsInput.disabled = true;
-}
-
-// ========================
 // 🚀 INIT
 // ========================
 document.addEventListener("DOMContentLoaded", () => {
@@ -84,35 +88,35 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🎧 EVENTS
 // ========================
 function setupEventListeners() {
-    enhanceBtn.addEventListener("click", enhanceTextHandler);
-    clearBtn.addEventListener("click", clearAll);
-    speakBtn.addEventListener("click", speakText);
-    copyBtn.addEventListener("click", copyText);
-    downloadBtn.addEventListener("click", downloadText);
+    if (enhanceBtn) enhanceBtn.addEventListener("click", enhanceTextHandler);
+    if (clearBtn) clearBtn.addEventListener("click", clearAll);
+    if (speakBtn) speakBtn.addEventListener("click", speakText);
+    if (copyBtn) copyBtn.addEventListener("click", copyText);
+    if (downloadBtn) downloadBtn.addEventListener("click", downloadText);
 
-    voiceSpeed.addEventListener("input", (e) => {
-        speedDisplay.textContent = e.target.value + "x";
-    });
-
-    speechSynthesis.onvoiceschanged = () => {
-        speechSynthesis.getVoices();
-    };
+    if (voiceSpeed) {
+        voiceSpeed.addEventListener("input", (e) => {
+            if (speedDisplay) speedDisplay.textContent = e.target.value + "x";
+        });
+    }
 }
 
 // ================================
-// 🔥 ENHANCE TEXT (JWT SAFE)
+// 🔥 ENHANCE TEXT (FIXED)
 // ================================
 async function enhanceTextHandler() {
     const token = requireLogin();
-    const text = ttsInput.value.trim();
+    const text = (ttsInput?.value || "").trim();
 
     if (!text) {
         alert("⚠️ Please enter some text!");
         return;
     }
 
-    enhanceBtn.disabled = true;
-    enhanceBtn.innerText = "✨ Enhancing...";
+    if (enhanceBtn) {
+        enhanceBtn.disabled = true;
+        enhanceBtn.innerText = "✨ Enhancing...";
+    }
 
     try {
         const response = await fetch(`${API_BASE}/tts/enhance`, {
@@ -123,28 +127,27 @@ async function enhanceTextHandler() {
             },
             body: JSON.stringify({
                 text,
-                mode: ttsMode.value,
-                personality: ttsPersonality.value,
-                emotion: ttsEmotion.value,
-                action: ttsAction.value
+                mode: ttsMode?.value || "default",
+                personality: ttsPersonality?.value || "neutral",
+                emotion: ttsEmotion?.value || "neutral",
+                action: ttsAction?.value || "none"
             })
         });
 
-        const contentType = response.headers.get("content-type");
+        const rawText = await response.text();
 
         if (!response.ok) {
-            const errText = await response.text();
-            console.error("Server error:", errText);
+            console.error("Server error:", rawText);
             throw new Error("Server error or invalid route");
         }
 
-        if (!contentType || !contentType.includes("application/json")) {
-            const raw = await response.text();
-            console.error("Invalid response:", raw);
-            throw new Error("Server returned invalid response");
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (e) {
+            console.error("Invalid JSON:", rawText);
+            throw new Error("Server returned invalid JSON");
         }
-
-        const data = await response.json();
 
         if (!data.success) {
             throw new Error(data.error || "Enhancement failed");
@@ -152,37 +155,42 @@ async function enhanceTextHandler() {
 
         enhancedText = data.enhanced || "";
 
-        ttsOutput.innerHTML = `
-            <p>${escapeHTML(enhancedText).replace(/\n/g, "<br>")}</p>
-        `;
+        if (ttsOutput) {
+            ttsOutput.innerHTML = `
+                <p>${escapeHTML(enhancedText).replace(/\n/g, "<br>")}</p>
+            `;
+        }
 
-        speakBtn.disabled = false;
-        copyBtn.disabled = false;
-        downloadBtn.disabled = false;
+        if (speakBtn) speakBtn.disabled = false;
+        if (copyBtn) copyBtn.disabled = false;
+        if (downloadBtn) downloadBtn.disabled = false;
 
     } catch (err) {
         console.error(err);
         alert("❌ " + err.message);
     } finally {
-        enhanceBtn.disabled = false;
-        enhanceBtn.innerText = "✨ Enhance Text";
+        if (enhanceBtn) {
+            enhanceBtn.disabled = false;
+            enhanceBtn.innerText = "✨ Enhance Text";
+        }
     }
 }
 
 // ========================
-// 🔊 SPEAK
+// 🔊 SPEAK (FIXED)
 // ========================
 function speakText() {
     if (!enhancedText) return;
 
     const speech = new SpeechSynthesisUtterance(enhancedText);
 
-    speech.lang = voiceLang.value;
-    speech.rate = parseFloat(voiceSpeed.value);
+    speech.lang = voiceLang?.value || "en-US";
+    speech.rate = parseFloat(voiceSpeed?.value || 1);
 
     const voices = speechSynthesis.getVoices();
+
     let langVoices = voices.filter(v =>
-        v.lang.includes(speech.lang.split("-")[0])
+        v.lang?.includes(speech.lang.split("-")[0])
     );
 
     speech.voice = langVoices[0] || voices[0];
@@ -196,6 +204,7 @@ function speakText() {
 // ========================
 function copyText() {
     if (!enhancedText) return;
+
     navigator.clipboard.writeText(enhancedText);
     alert("Copied! ✅");
 }
@@ -221,13 +230,17 @@ function downloadText() {
 // 🧹 CLEAR
 // ========================
 function clearAll() {
-    ttsInput.value = "";
-    ttsOutput.innerHTML = "<p class='placeholder'>Your enhanced text will appear here...</p>";
+    if (ttsInput) ttsInput.value = "";
+
+    if (ttsOutput) {
+        ttsOutput.innerHTML = "<p class='placeholder'>Your enhanced text will appear here...</p>";
+    }
+
     enhancedText = "";
 
-    speakBtn.disabled = true;
-    copyBtn.disabled = true;
-    downloadBtn.disabled = true;
+    if (speakBtn) speakBtn.disabled = true;
+    if (copyBtn) copyBtn.disabled = true;
+    if (downloadBtn) downloadBtn.disabled = true;
 }
 
 // ========================
@@ -240,4 +253,4 @@ function escapeHTML(str) {
         .replaceAll(">", "&gt;");
 }
 
-console.log("🔥 TTS ENHANCER FULLY SECURE ");
+console.log("🔥 TTS ENHANCER FIXED + SECURE VERSION LOADED");
