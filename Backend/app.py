@@ -1,82 +1,115 @@
-import os
-from flask import Flask, jsonify, request
+import os, sys
+from flask import Flask, send_from_directory, jsonify, request
 from flask_cors import CORS
 
-print("🚀 APP STARTING...")
+# ===== Fix path for modules =====
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(BASE_DIR, "src"))
 
-app = Flask(__name__)
-CORS(app)
+# ===== Import blueprints =====
+from module.auth import auth_bp
+from module.tts import tts_bp
+from module.message import messages_bp
 
-# ========================
-# BLUEPRINT IMPORT SAFE
-# ========================
+# ===== Database =====
+from src.database import get_conn
+
+# ===== AI (SAFE IMPORT) =====
 try:
-    from src.module.auth import auth_bp
-    from src.module.tts import tts_bp
-    from src.module.message import messages_bp
-
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(tts_bp, url_prefix="/tts")
-    app.register_blueprint(messages_bp, url_prefix="/messages")
-
-    print("✅ Blueprints loaded")
-
-except Exception as e:
-    print("❌ Blueprint error:", e)
-
-
-# ========================
-# AI IMPORT SAFE (NEW)
-# ========================
-try:
-    from src.module.ai_service import enhance_text
+    from module.ai_service import enhance_text
     AI_AVAILABLE = True
-    print("✅ AI service loaded")
+    print("✅ AI Loaded")
 except Exception as e:
     AI_AVAILABLE = False
-    print("❌ AI service not loaded:", e)
+    print("❌ AI Error:", e)
+
+# ===== Auto-create tables =====
+def init_db():
+    try:
+        conn = get_conn()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS public.users (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS public.tts_logs (
+                id SERIAL PRIMARY KEY,
+                user_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            conn.commit()
+        print("[DB] Tables ensured ✅")
+    except Exception as e:
+        print("[DB] Error:", e)
+    finally:
+        conn.close()
+
+init_db()
+
+# ===== Flask app =====
+app = Flask(
+    __name__,
+    # 🔥 IMPORTANT FIX (documentation folder target)
+    static_folder=os.path.join(BASE_DIR, "../Frontend/documentation")
+)
+
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# ===== SECURITY HEADERS =====
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# ===== Register blueprints =====
+app.register_blueprint(auth_bp, url_prefix="/auth")
+app.register_blueprint(tts_bp, url_prefix="/tts")
+app.register_blueprint(messages_bp, url_prefix="/messages")
+
+# ===== FRONTEND SERVE (FIXED) =====
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    try:
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+
+        # 👉 default index.html
+        return send_from_directory(app.static_folder, "index.html")
+
+    except Exception as e:
+        print("❌ Frontend error:", e)
+        return jsonify({"error": "Frontend load error"}), 500
 
 
-# ========================
-# ROOT
-# ========================
-@app.route("/")
-def home():
-    return jsonify({"message": "API working 🚀"})
-
-
-# ========================
-# HEALTH CHECK
-# ========================
-@app.route("/health")
-def health():
-    return jsonify({
-        "status": "ok",
-        "message": "Backend running 🚀"
-    })
-
-
-# ========================
-# 🔥 AI TEXT ENHANCER ROUTE (MAIN FIX)
-# ========================
+# ===== 🔥 AI ENHANCE ROUTE =====
 @app.route("/enhance", methods=["POST"])
 def enhance():
     try:
         data = request.get_json()
 
         if not data:
-            return jsonify({"success": False, "error": "No JSON body"}), 400
+            return jsonify({"success": False, "error": "No JSON"}), 400
 
         text = data.get("text", "")
 
         if not text:
-            return jsonify({"success": False, "error": "Text is empty"}), 400
+            return jsonify({"success": False, "error": "Empty text"}), 400
 
         if not AI_AVAILABLE:
-            return jsonify({
-                "success": False,
-                "error": "AI service not available"
-            }), 500
+            return jsonify({"success": False, "error": "AI not available"}), 500
 
         result = enhance_text(text)
 
@@ -88,52 +121,17 @@ def enhance():
 
     except Exception as e:
         print("🔥 Enhance error:", e)
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-# ========================
-# DEBUG ROUTES
-# ========================
-@app.route("/debug")
-def debug():
-    return jsonify({
-        "routes": [str(r) for r in app.url_map.iter_rules()]
-    })
+# ===== HEALTH =====
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok 🚀"})
 
 
-# ========================
-# ERROR HANDLERS
-# ========================
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({
-        "success": False,
-        "error": "Route not found"
-    }), 404
-
-
-@app.errorhandler(405)
-def method_not_allowed(e):
-    return jsonify({
-        "success": False,
-        "error": "Method not allowed (check POST/GET)"
-    }), 405
-
-
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({
-        "success": False,
-        "error": "Server error"
-    }), 500
-
-
-# ========================
-# RUN
-# ========================
+# ===== RUN =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug_mode = os.environ.get("FLASK_ENV", "development") == "development"
+    app.run(debug=debug_mode, host="0.0.0.0", port=port)
