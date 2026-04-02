@@ -1,27 +1,36 @@
-// ===== TTS ENHANCER APPLICATION (JWT FIXED) =====
+// ===== TTS ENHANCER APPLICATION (FULL SECURE VERSION) =====
 
 const API_BASE = "https://robo-enhance.onrender.com";
 
 let enhancedText = "";
 
-// ===== AUTH CHECK =====
+// ========================
+// 🔐 AUTH
+// ========================
 function getToken() {
     return localStorage.getItem("token");
+}
+
+function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "login.html";
 }
 
 function requireLogin() {
     const token = getToken();
 
-    if (!token) {
-        alert("⚠️ Please login first!");
+    if (!token || token === "null") {
+        disableUI();
         window.location.href = "login.html";
-        return null;
+        throw new Error("No token found");
     }
 
     return token;
 }
 
-// ===== DOM ELEMENTS =====
+// ========================
+// 🎯 DOM ELEMENTS
+// ========================
 const ttsInput = document.getElementById("tts-input");
 const ttsMode = document.getElementById("tts-mode");
 const ttsPersonality = document.getElementById("tts-personality");
@@ -42,10 +51,38 @@ const voiceSpeed = document.getElementById("voice-speed");
 const voiceGender = document.getElementById("voice-gender");
 const speedDisplay = document.getElementById("speed-display");
 
-// ===== INIT =====
-document.addEventListener("DOMContentLoaded", setupEventListeners);
+// ========================
+// 🚫 DISABLE UI
+// ========================
+function disableUI() {
+    enhanceBtn.disabled = true;
+    clearBtn.disabled = true;
+    speakBtn.disabled = true;
+    copyBtn.disabled = true;
+    downloadBtn.disabled = true;
 
-// ===== EVENTS =====
+    if (ttsInput) ttsInput.disabled = true;
+}
+
+// ========================
+// 🚀 INIT
+// ========================
+document.addEventListener("DOMContentLoaded", () => {
+    const token = getToken();
+
+    if (!token) {
+        alert("⚠️ Please login first!");
+        disableUI();
+        window.location.href = "login.html";
+        return;
+    }
+
+    setupEventListeners();
+});
+
+// ========================
+// 🎧 EVENTS
+// ========================
 function setupEventListeners() {
     enhanceBtn.addEventListener("click", enhanceTextHandler);
     clearBtn.addEventListener("click", clearAll);
@@ -63,13 +100,10 @@ function setupEventListeners() {
 }
 
 // ================================
-// 🔥 ENHANCE API CALL (FIXED JWT + HTML ERROR SAFE)
+// 🔥 ENHANCE TEXT (JWT SAFE)
 // ================================
 async function enhanceTextHandler() {
-
     const token = requireLogin();
-    if (!token) return;
-
     const text = ttsInput.value.trim();
 
     if (!text) {
@@ -96,19 +130,18 @@ async function enhanceTextHandler() {
             })
         });
 
-        // 🚨 FIX: HTML instead of JSON crash protection
         const contentType = response.headers.get("content-type");
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error("Server response:", errText);
+            console.error("Server error:", errText);
             throw new Error("Server error or invalid route");
         }
 
         if (!contentType || !contentType.includes("application/json")) {
             const raw = await response.text();
-            console.error("NOT JSON RESPONSE:", raw);
-            throw new Error("Server returned invalid response (HTML instead of JSON)");
+            console.error("Invalid response:", raw);
+            throw new Error("Server returned invalid response");
         }
 
         const data = await response.json();
@@ -136,9 +169,9 @@ async function enhanceTextHandler() {
     }
 }
 
-// ================================
-// 🔊 SPEAK TEXT
-// ================================
+// ========================
+// 🔊 SPEAK
+// ========================
 function speakText() {
     if (!enhancedText) return;
 
@@ -148,7 +181,9 @@ function speakText() {
     speech.rate = parseFloat(voiceSpeed.value);
 
     const voices = speechSynthesis.getVoices();
-    let langVoices = voices.filter(v => v.lang.includes(speech.lang.split("-")[0]));
+    let langVoices = voices.filter(v =>
+        v.lang.includes(speech.lang.split("-")[0])
+    );
 
     speech.voice = langVoices[0] || voices[0];
 
@@ -157,7 +192,7 @@ function speakText() {
 }
 
 // ========================
-// COPY
+// 📋 COPY
 // ========================
 function copyText() {
     if (!enhancedText) return;
@@ -166,7 +201,7 @@ function copyText() {
 }
 
 // ========================
-// DOWNLOAD
+// ⬇️ DOWNLOAD
 // ========================
 function downloadText() {
     if (!enhancedText) return;
@@ -183,7 +218,7 @@ function downloadText() {
 }
 
 // ========================
-// CLEAR
+// 🧹 CLEAR
 // ========================
 function clearAll() {
     ttsInput.value = "";
@@ -196,6 +231,8 @@ function clearAll() {
 }
 
 // ========================
+// 🔐 HTML ESCAPE
+// ========================
 function escapeHTML(str) {
     return str
         .replaceAll("&", "&amp;")
@@ -203,4 +240,4 @@ function escapeHTML(str) {
         .replaceAll(">", "&gt;");
 }
 
-console.log("🔥 TTS ENHANCER FULLY JWT PROTECTED");
+console.log("🔥 TTS ENHANCER FULLY SECURE ");
