@@ -1,8 +1,25 @@
-// ===== TTS ENHANCER APPLICATION =====
+// ===== TTS ENHANCER APPLICATION (JWT FIXED) =====
 
 const API_BASE = "https://robo-enhance.onrender.com";
 
 let enhancedText = "";
+
+// ===== AUTH CHECK =====
+function getToken() {
+    return localStorage.getItem("token");
+}
+
+function requireLogin() {
+    const token = getToken();
+
+    if (!token) {
+        alert("⚠️ Please login first!");
+        window.location.href = "login.html";
+        return null;
+    }
+
+    return token;
+}
 
 // ===== DOM ELEMENTS =====
 const ttsInput = document.getElementById("tts-input");
@@ -40,16 +57,19 @@ function setupEventListeners() {
         speedDisplay.textContent = e.target.value + "x";
     });
 
-    // preload voices
     speechSynthesis.onvoiceschanged = () => {
         speechSynthesis.getVoices();
     };
 }
 
 // ================================
-// 🔥 ENHANCE API CALL
+// 🔥 ENHANCE API CALL (FIXED JWT + HTML ERROR SAFE)
 // ================================
 async function enhanceTextHandler() {
+
+    const token = requireLogin();
+    if (!token) return;
+
     const text = ttsInput.value.trim();
 
     if (!text) {
@@ -64,7 +84,8 @@ async function enhanceTextHandler() {
         const response = await fetch(`${API_BASE}/tts/enhance`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify({
                 text,
@@ -75,9 +96,19 @@ async function enhanceTextHandler() {
             })
         });
 
+        // 🚨 FIX: HTML instead of JSON crash protection
+        const contentType = response.headers.get("content-type");
+
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(`Server Error: ${response.status}`);
+            console.error("Server response:", errText);
+            throw new Error("Server error or invalid route");
+        }
+
+        if (!contentType || !contentType.includes("application/json")) {
+            const raw = await response.text();
+            console.error("NOT JSON RESPONSE:", raw);
+            throw new Error("Server returned invalid response (HTML instead of JSON)");
         }
 
         const data = await response.json();
@@ -106,55 +137,20 @@ async function enhanceTextHandler() {
 }
 
 // ================================
-// 🔊 SPEAK TEXT (MULTILINGUAL + GENDER)
+// 🔊 SPEAK TEXT
 // ================================
 function speakText() {
     if (!enhancedText) return;
 
     const speech = new SpeechSynthesisUtterance(enhancedText);
 
-    const lang = voiceLang.value;
-    const gender = voiceGender.value;
-    const rate = parseFloat(voiceSpeed.value);
-
-    speech.lang = lang;
-    speech.rate = rate;
+    speech.lang = voiceLang.value;
+    speech.rate = parseFloat(voiceSpeed.value);
 
     const voices = speechSynthesis.getVoices();
+    let langVoices = voices.filter(v => v.lang.includes(speech.lang.split("-")[0]));
 
-    let selectedVoice = null;
-
-    if (voices.length > 0) {
-
-        // 1️⃣ match language first
-        let langVoices = voices.filter(v => v.lang.includes(lang.split("-")[0]));
-
-        // 2️⃣ try gender match
-        if (gender === "male") {
-            selectedVoice = langVoices.find(v =>
-                v.name.toLowerCase().includes("male") ||
-                v.name.toLowerCase().includes("david") ||
-                v.name.toLowerCase().includes("alex") ||
-                v.name.toLowerCase().includes("daniel")
-            );
-        } else {
-            selectedVoice = langVoices.find(v =>
-                v.name.toLowerCase().includes("female") ||
-                v.name.toLowerCase().includes("zira") ||
-                v.name.toLowerCase().includes("samantha") ||
-                v.name.toLowerCase().includes("anna")
-            );
-        }
-
-        // 3️⃣ fallback
-        if (!selectedVoice) {
-            selectedVoice = langVoices[0] || voices[0];
-        }
-
-        if (selectedVoice) {
-            speech.voice = selectedVoice;
-        }
-    }
+    speech.voice = langVoices[0] || voices[0];
 
     speechSynthesis.cancel();
     speechSynthesis.speak(speech);
@@ -207,5 +203,4 @@ function escapeHTML(str) {
         .replaceAll(">", "&gt;");
 }
 
-// ========================
-console.log("🔥 FULL TTS ENHANCER LOADED");
+console.log("🔥 TTS ENHANCER FULLY JWT PROTECTED");
