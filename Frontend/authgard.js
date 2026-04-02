@@ -1,14 +1,15 @@
-function requireLogin() {
-  const token = localStorage.getItem("token");
-
-  if (!token || token === "null" || token === "undefined") {
-    window.location.href = "login.html";
-    return false;
-  }
-
-  return true;
+function getToken() {
+    return localStorage.getItem("token");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  requireLogin();
-});
+function isLoggedIn() {
+    const token = getToken();
+    return token && token !== "null" && token !== "undefined";
+}
+
+// ❌ redirect if NOT logged in
+function requireAuth() {
+    if (!isLoggedIn()) {
+        window.location.href = "login.html";
+    }
+}

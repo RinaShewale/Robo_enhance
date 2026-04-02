@@ -197,8 +197,17 @@
 
     <script src="script.js"></script>
     <script src="form.js"></script>
-    <script src="features-advanced.js"></script>
-    <script src="features-discovery.js"></script>
+
+    <script>
+        // optional: if no token → show login button only
+        const token = localStorage.getItem("token");
+
+        if (!token || token === "null") {
+            console.log("User not logged in");
+        } else {
+            console.log("User already logged in");
+        }
+    </script>
 </body>
 
 </html>
