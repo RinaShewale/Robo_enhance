@@ -8,7 +8,10 @@ load_dotenv()
 
 messages_bp = Blueprint("messages", __name__)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+# =========================
+# 🔐 SECRET KEY FIXED
+# =========================
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
 
 # =========================
@@ -16,22 +19,30 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # =========================
 def verify_token(token):
     try:
+        if not token:
+            return None
+
         return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    except:
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
         return None
 
 
 # =========================
-# 💾 SAVE MESSAGE (SECURE)
+# 💾 SAVE MESSAGE
 # =========================
 @messages_bp.route("/save_message", methods=["POST"])
 def save_message():
-    token = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
 
-    if not token:
+    if not auth_header:
         return jsonify({"error": "Token required"}), 401
 
-    token = token.replace("Bearer ", "")
+    token = auth_header.replace("Bearer ", "")
     user = verify_token(token)
 
     if not user:
@@ -44,6 +55,7 @@ def save_message():
         return jsonify({"error": "Message required"}), 400
 
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -54,6 +66,7 @@ def save_message():
                 """,
                 (user["user_id"], message_text)
             )
+
             msg_id = cursor.fetchone()[0]
             conn.commit()
 
@@ -71,24 +84,23 @@ def save_message():
 
 
 # =========================
-# 📩 GET MESSAGES (SECURE)
+# 📩 GET MESSAGES
 # =========================
 @messages_bp.route("/get_messages", methods=["GET"])
 def get_messages():
-    token = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
 
-    if not token:
+    if not auth_header:
         return jsonify({"error": "Token required"}), 401
 
-    token = token.replace("Bearer ", "")
+    token = auth_header.replace("Bearer ", "")
     user = verify_token(token)
 
     if not user:
         return jsonify({"error": "Invalid token"}), 401
 
-    user_id = user["user_id"]
-
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -98,7 +110,7 @@ def get_messages():
                 WHERE user_id=%s
                 ORDER BY created_at ASC;
                 """,
-                (user_id,)
+                (user["user_id"],)
             )
 
             rows = cursor.fetchall()
@@ -122,22 +134,23 @@ def get_messages():
 
 
 # =========================
-# 🗑 DELETE SINGLE MESSAGE (SECURE)
+# 🗑 DELETE SINGLE MESSAGE
 # =========================
 @messages_bp.route("/delete_message/<int:message_id>", methods=["DELETE"])
 def delete_message(message_id):
-    token = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
 
-    if not token:
+    if not auth_header:
         return jsonify({"error": "Token required"}), 401
 
-    token = token.replace("Bearer ", "")
+    token = auth_header.replace("Bearer ", "")
     user = verify_token(token)
 
     if not user:
         return jsonify({"error": "Invalid token"}), 401
 
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -154,8 +167,11 @@ def delete_message(message_id):
 
         if deleted:
             return jsonify({"success": True, "id": message_id}), 200
-        else:
-            return jsonify({"success": False, "error": "Not found or not allowed"}), 404
+
+        return jsonify({
+            "success": False,
+            "error": "Not found or not allowed"
+        }), 404
 
     except Exception as e:
         conn.rollback()
@@ -166,22 +182,23 @@ def delete_message(message_id):
 
 
 # =========================
-# 🧹 DELETE ALL MESSAGES (SECURE)
+# 🧹 DELETE ALL MESSAGES
 # =========================
 @messages_bp.route("/delete_all", methods=["DELETE"])
 def delete_all():
-    token = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
 
-    if not token:
+    if not auth_header:
         return jsonify({"error": "Token required"}), 401
 
-    token = token.replace("Bearer ", "")
+    token = auth_header.replace("Bearer ", "")
     user = verify_token(token)
 
     if not user:
         return jsonify({"error": "Invalid token"}), 401
 
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
             cursor.execute(

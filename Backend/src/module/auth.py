@@ -13,7 +13,12 @@ load_dotenv()
 
 auth_bp = Blueprint("auth", __name__)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+# 🔐 SAFE SECRET KEY CHECK
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if not SECRET_KEY:
+    raise Exception("JWT_SECRET_KEY missing in .env file")
+
 JWT_EXP_DAYS = int(os.getenv("JWT_EXP_DAYS", 7))
 
 
@@ -21,12 +26,14 @@ JWT_EXP_DAYS = int(os.getenv("JWT_EXP_DAYS", 7))
 # TOKEN GENERATOR
 # ======================
 def generate_token(user):
-    return jwt.encode({
+    payload = {
         "user_id": user[0],
         "username": user[1],
         "email": user[2],
         "exp": datetime.datetime.utcnow() + datetime.timedelta(days=JWT_EXP_DAYS)
-    }, SECRET_KEY, algorithm="HS256")
+    }
+
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 
 # ======================
@@ -34,8 +41,14 @@ def generate_token(user):
 # ======================
 def verify_token(token):
     try:
+        if not token:
+            return None
+
         return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    except:
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
         return None
 
 
@@ -51,9 +64,10 @@ def register():
     password = data.get("password")
 
     if not username or not email or not password:
-        return jsonify({"error": "All fields are required"}), 400
+        return jsonify({"error": "All fields required"}), 400
 
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
 
@@ -63,12 +77,16 @@ def register():
             )
 
             if cursor.fetchone():
-                return jsonify({"error": "Email already registered"}), 400
+                return jsonify({"error": "Email already exists"}), 400
 
             hashed_password = generate_password_hash(password)
 
             cursor.execute(
-                "INSERT INTO public.users (username, email, password) VALUES (%s, %s, %s) RETURNING id, username, email;",
+                """
+                INSERT INTO public.users (username, email, password)
+                VALUES (%s, %s, %s)
+                RETURNING id, username, email;
+                """,
                 (username, email, hashed_password)
             )
 
@@ -76,7 +94,7 @@ def register():
             conn.commit()
 
         return jsonify({
-            "message": "User registered successfully",
+            "message": "User registered",
             "user": {
                 "id": user[0],
                 "username": user[1],
@@ -93,7 +111,7 @@ def register():
 
 
 # ======================
-# LOGIN (JWT)
+# LOGIN
 # ======================
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -103,14 +121,19 @@ def login():
     password = (data.get("password") or "").strip()
 
     if not email or not password:
-        return jsonify({"error": "Email and password required"}), 400
+        return jsonify({"error": "Email & password required"}), 400
 
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
 
             cursor.execute(
-                "SELECT id, username, email, password FROM public.users WHERE LOWER(email)=%s",
+                """
+                SELECT id, username, email, password
+                FROM public.users
+                WHERE LOWER(email)=%s
+                """,
                 (email,)
             )
 
@@ -130,7 +153,7 @@ def login():
                 }
             }), 200
 
-        return jsonify({"error": "Invalid email or password"}), 401
+        return jsonify({"error": "Invalid credentials"}), 401
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -140,7 +163,7 @@ def login():
 
 
 # ======================
-# GET CURRENT USER (TOKEN CHECK)
+# GET USER (ME)
 # ======================
 @auth_bp.route("/me", methods=["GET"])
 def me():
@@ -150,18 +173,16 @@ def me():
         return jsonify({"error": "Token missing"}), 401
 
     token = token.replace("Bearer ", "")
-    user_data = verify_token(token)
+    user = verify_token(token)
 
-    if not user_data:
+    if not user:
         return jsonify({"error": "Invalid token"}), 401
 
-    return jsonify({
-        "user": user_data
-    }), 200
+    return jsonify({"user": user}), 200
 
 
 # ======================
-# UPDATE PROFILE (JWT REQUIRED)
+# UPDATE PROFILE
 # ======================
 @auth_bp.route("/update_profile", methods=["PUT"])
 def update_profile():
@@ -181,12 +202,21 @@ def update_profile():
     username = (data.get("username") or "").strip()
     email = (data.get("email") or "").strip().lower()
 
+    if not username or not email:
+        return jsonify({"error": "Invalid input"}), 400
+
     conn = get_conn()
+
     try:
         with conn.cursor() as cursor:
 
             cursor.execute(
-                "UPDATE public.users SET username=%s, email=%s WHERE id=%s RETURNING id, username, email;",
+                """
+                UPDATE public.users
+                SET username=%s, email=%s
+                WHERE id=%s
+                RETURNING id, username, email;
+                """,
                 (username, email, user_data["user_id"])
             )
 
@@ -211,8 +241,8 @@ def update_profile():
 
 
 # ======================
-# LOGOUT (CLIENT HANDLES)
+# LOGOUT (CLIENT SIDE)
 # ======================
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
-    return jsonify({"message": "Logout successful"}), 200
+    return jsonify({"message": "Logged out"}), 200
