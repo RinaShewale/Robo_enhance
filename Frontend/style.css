@@ -344,6 +344,81 @@ main section.view2 .feature .feature_card2 .card:hover {
   scale: 0.95;
 }
 
+
+
+/* ================= NEW: TTS ENHANCER SECTION (MATCHING THEME) ================= */
+.view-enhancer {
+    width: 100%;
+    padding: 80px 10%;
+    display: flex;
+    justify-content: center;
+    background: linear-gradient(180deg, #000 0%, rgba(76, 29, 61, 0.2) 100%);
+}
+
+.enhancer-container {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    align-items: center;
+    gap: 50px;
+    background: rgba(31, 30, 30, 0.6);
+    padding: 50px;
+    border-radius: 40px;
+    border: 1px solid var(--primary-hover);
+    backdrop-filter: blur(10px);
+}
+
+.enhancer-content { flex: 1; }
+.enhancer-badge {
+    background: var(--accent);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 50px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.enhancer-content h2 { font-size: 3rem; margin: 20px 0; line-height: 1.1; }
+.enhancer-content h2 span { color: var(--secondary); }
+.enhancer-content p { color: #ccc; margin-bottom: 30px; line-height: 1.6; font-size: 1.05rem; }
+
+.enhancer-points { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
+.enhancer-points .point { display: flex; align-items: center; gap: 10px; font-weight: 500; color: #fff; }
+.enhancer-points i { color: var(--accent); font-size: 1.3rem; }
+
+.enhancer-main-btn {
+    display: inline-block;
+    padding: 15px 35px;
+    background: var(--button);
+    color: #000;
+    text-decoration: none;
+    border-radius: 50px;
+    font-weight: 700;
+    transition: 0.3s;
+}
+.enhancer-main-btn:hover { background: var(--accent); color: white; transform: translateY(-5px); box-shadow: 0 10px 20px rgba(220, 88, 109, 0.3); }
+
+/* Sound Wave Animation */
+.enhancer-visual { flex: 0.8; display: flex; justify-content: center; }
+.sound-wave { display: flex; align-items: center; gap: 8px; height: 150px; }
+.wave-bar {
+    width: 10px; height: 50px; background: var(--accent);
+    border-radius: 10px; animation: wave-pulse 1.2s ease-in-out infinite;
+}
+.wave-bar:nth-child(2) { height: 90px; animation-delay: 0.1s; background: var(--primary-dark); }
+.wave-bar:nth-child(3) { height: 130px; animation-delay: 0.2s; background: var(--secondary); }
+.wave-bar:nth-child(4) { height: 70px; animation-delay: 0.3s; background: var(--accent); }
+.wave-bar:nth-child(5) { height: 110px; animation-delay: 0.4s; background: var(--primary-hover); }
+.wave-bar:nth-child(6) { height: 40px; animation-delay: 0.5s; background: var(--secondary); }
+
+@keyframes wave-pulse {
+    0%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(0.5); }
+}
+
+
 main section.view3 {
   width: 100%;
   height: auto;
